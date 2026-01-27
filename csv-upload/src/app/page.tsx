@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import clsx from "clsx";
 import {
   Accordion,
@@ -37,6 +37,8 @@ export default function Page() {
   const [showProgress, setShowProgress] = useState(false);
   const [fadeOut, setFadeOut] = useState(false);
   const [progress, setProgress] = useState<{ current: number; total: number | null }>({ current: 0, total: null });
+  
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const isGerman = typeof navigator !== 'undefined' && navigator.language.startsWith('de');
   
@@ -73,6 +75,22 @@ export default function Page() {
     setProgress({ current: 0, total: null });
     setShowProgress(false);
     setFadeOut(false);
+  }
+
+  function resetFile() {
+    setSelectedFile(null);
+    setCurrentFormat(undefined);
+    setStatus(undefined);
+    setRawRecords([]);
+    setGenderData([]);
+    setProgress({ current: 0, total: null });
+    setShowProgress(false);
+    setFadeOut(false);
+    
+    // Reset das file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   }
 
   async function handleUpload() {
@@ -229,14 +247,7 @@ export default function Page() {
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                setSelectedFile(null);
-                setCurrentFormat(undefined);
-                setStatus(undefined);
-                setRawRecords([]);
-                setGenderData([]);
-                setProgress({ current: 0, total: null });
-                setShowProgress(false);
-                setFadeOut(false);
+                resetFile();
               }}
               className="absolute top-2 right-2 text-red-500 hover:text-red-700 p-1 rounded-full bg-white shadow z-10 pointer-events-auto"
             >
@@ -245,6 +256,7 @@ export default function Page() {
           )}
 
           <input
+            ref={fileInputRef}
             id="file"
             type="file"
             accept=".csv,.xlsx,.xlsm,.xlsb,.xls"
@@ -403,7 +415,7 @@ export default function Page() {
           <div className={`space-y-2 transition-opacity duration-300 ${fadeOut ? 'opacity-0' : 'opacity-100'}`}>
             <Progress value={progress.total !== null ? (progress.current / progress.total) * 100 : 0} />
             <p className="text-sm text-center text-slate-600">
-              {progress.total !== null ? `Step ${progress.current} of ${progress.total}` : "Calculating..."}
+              {progress.total !== null ? `${progress.current} of ${progress.total} batches complete` : "Calculating..."}
             </p>
           </div>
         )}
