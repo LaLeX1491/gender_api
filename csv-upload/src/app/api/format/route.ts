@@ -18,9 +18,11 @@ export async function POST(req: Request): Promise<Response> {
     }
 
     const finalData = body.records.map(r => {
-      const genderRow = body.genderData.find(g => g.id === r.id);
+      const genderRow = body.genderData.find(g => Number(g.id) === Number(r.id));
       const probability = genderRow?.probability ? Number(genderRow.probability) : 0;
       const gender = genderRow?.gender;
+      const ignoreInformation = probability < threshold && action === "ignore";
+
       const address = {
         en: { male: "Dear Mr. ", female: "Dear Mrs. " },
         de: { male: "Sehr geehrter Herr ", female: "Sehr geehrte Frau " }
@@ -32,8 +34,10 @@ export async function POST(req: Request): Promise<Response> {
         ...rest,
         gender,
         probability: probability + "%",
-        addressLine: address[adressLang as Language]?.[gender as Gender] 
-          ? address[adressLang as Language]?.[gender as Gender] + r.lastName 
+        addressLine: !ignoreInformation 
+          ? address[adressLang as Language]?.[gender as Gender] 
+            ? address[adressLang as Language]?.[gender as Gender] + r.lastName 
+            : ""
           : ""
       }
     }).filter(r => {
