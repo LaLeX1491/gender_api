@@ -81,6 +81,8 @@ export async function POST(req: Request): Promise<Response> {
           100
         );
 
+        send("PROGRESS", { step: 0, total: batches.length });
+
         const genderData: ResultRecord[] = await processBatches(batches, (completed, total) => {
           send("PROGRESS", { step: completed, total: total });
         });
