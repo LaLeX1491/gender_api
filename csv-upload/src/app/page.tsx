@@ -340,7 +340,7 @@ export default function Page() {
           <div className={`space-y-2 transition-opacity duration-300 ${fadeOut ? 'opacity-0' : 'opacity-100'}`}>
             <Progress value={progress.total !== null ? (progress.current / progress.total) * 100 : 0} />
             <p className="text-sm text-center text-slate-600">
-              {progress.total !== null ? `Step ${progress.current} of ${progress.total}` : "Calculating..."}
+              {progress.total !== null ? `${progress.current} of ${progress.total} batches complete` : "Calculating..."}
             </p>
           </div>
         )}
