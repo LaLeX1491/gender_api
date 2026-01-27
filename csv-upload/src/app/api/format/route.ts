@@ -18,9 +18,9 @@ export async function POST(req: Request): Promise<Response> {
     }
 
     const finalData = body.records.map(r => {
-      const genderRow = body.genderData[r.id];
+      const genderRow = body.genderData.find(g => g.id === r.id);
       const probability = genderRow?.probability ? Number(genderRow.probability) : 0;
-      const gender = genderRow.gender;
+      const gender = genderRow?.gender;
       const address = {
         en: { male: "Dear Mr. ", female: "Dear Mrs. " },
         de: { male: "Sehr geehrter Herr ", female: "Sehr geehrte Frau " }
