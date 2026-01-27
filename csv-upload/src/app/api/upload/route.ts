@@ -14,19 +14,20 @@ const ALLOWED_FORMATS: Record<string, { contentType: string; bookType?: BookType
   xlsm: { contentType: "application/vnd.ms-excel", bookType: "xlsm" },
 };
  
-type InputRecord = {id: number, firstName: string, lastName: string, location: string};
-type ResultRecord = {id: number, gender: string, probability: number};
+export type InputRecord = {id: number, firstName: string, lastName: string, location: string};
+export type ResultRecord = {id: number, gender: string, probability: number};
 
 export type StreamStatus = "PROGRESS" | "STATUS" | "ERROR" | "DONE";
 
 /**
  *  - output same format as input || done
  *  - add optional threshold / file end || done
- *  - convert object / csv to json object before sending to n8n
- *  - convert response json back to requested format
- *  - move n8n batching to here / requests sequential or parallel
- *  - add process feedback
- *  - only 6 steps (just the ai processing ones)
+ *  - convert object / csv to json object before sending to n8n  || done
+ *  - convert response json back to requested format || done
+ *  - move n8n batching to here / requests sequential or parallel  || done
+ *  - add process feedback  || done
+ *  - only 6 steps (just the ai processing ones)  || done
+ *  - handle mutiple downloads with different options
  * 
  * extra changes
  * - index wird vom frontend geführt
@@ -50,11 +51,6 @@ export async function POST(req: Request): Promise<Response> {
 
       try {
         const formData = await req.formData();
-        const { searchParams } = new URL(req.url);
-        const outputFormat = (searchParams.get("outputFormat") ?? "csv").toLowerCase();
-        const threshold: number = Number((searchParams.get("threshold") ?? 75));
-        const action: "delete" | "ignore" = (searchParams.get("action") ?? "ignore") as "delete" | "ignore";
-        const adressLang: "de" | "en" = (searchParams.get("addressLang") ?? "en") as "de" | "en";
 
         const file = formData.get("file");
         if (!file || !(file instanceof File)) {
@@ -89,40 +85,7 @@ export async function POST(req: Request): Promise<Response> {
           send("PROGRESS", { step: completed, total: total });
         });
 
-        const finalData = records.map(r => {
-          const genderRow = genderData[r.id];
-          const probability = genderRow?.probability ? Number(genderRow.probability) : 0;
-          const gender = genderRow.gender;
-
-          const address = {
-            en: { male: "Dear Mr. ", female: "Dear Mrs. " },
-            de: { male: "Sehr geehrter Herr ", female: "Sehr geehrte Frau " }
-          } as const;
-
-          type Language = keyof typeof address;
-          type Gender = keyof typeof address.en;
-
-          const { id, ...rest } = r;
-
-          return {
-            ...rest,
-            gender,
-            probability: probability + "%",
-            addressLine: address[adressLang as Language]?.[gender as Gender] 
-              ? address[adressLang as Language]?.[gender as Gender] + r.lastName 
-              : ""
-          }
-        }).filter(r => {
-          if (action === "delete") {
-            return r.probability.replaceAll("%", "") >= threshold;
-          }
-          return true;
-        });
-
-        const outputBuffer = await objectToExcel(finalData, outputFormat as BookType);
-        const base64 = Buffer.from(outputBuffer).toString("base64");
-
-        send("DONE", { file: base64 });
+        send("DONE", { json: genderData, records: records});
         controller.close();
       } catch (err) {
         send("ERROR", {message: (err as Error).message});

@@ -23,21 +23,26 @@ import {
 import getFormat from "@/lib/extractFileFormat";
 import { FaTimes } from "react-icons/fa";
 
+type ResultRecord = { id: number; gender: string; probability: number };
+
 export default function Page() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [currentFormat, setCurrentFormat] = useState<string>();
   const [status, setStatus] = useState<string>();
   const [loading, setLoading] = useState(false);
-  const [fileData, setFileData] = useState<{ base64: string; format: string }>();
+  const [rawRecords, setRawRecords] = useState<any[]>([]);
+  const [genderData, setGenderData] = useState<ResultRecord[]>([]);
   const [threshold, setThreshold] = useState<number>(70);
   const [action, setAction] = useState<"delete" | "ignore">("ignore");
+  const [addressLang, setAddressLang] = useState<"de" | "en">("de");
   const [progress, setProgress] = useState<{ current: number; total: number }>({ current: 0, total: 0 });
 
   function onFileSelect(file: File) {
     setSelectedFile(file);
     setCurrentFormat(getFormat(file));
     setStatus(undefined);
-    setFileData(undefined);
+    setRawRecords([]);
+    setGenderData([]);
     setProgress({ current: 0, total: 0 });
   }
 
@@ -50,18 +55,9 @@ export default function Page() {
 
     const formData = new FormData();
     formData.append("file", selectedFile);
-    const params = new URLSearchParams({
-      outputFormat: currentFormat || "",
-      threshold: threshold?.toString() || "",
-      action: action || "",
-      addressLang: "de"
-    });
 
     try {
-      const res = await fetch(
-        `/api/upload?${params.toString()}`,
-        { method: "POST", body: formData }
-      );
+      const res = await fetch(`/api/upload`, { method: "POST", body: formData });
 
       if (!res.body) {
         setStatus("No response body");
@@ -110,7 +106,8 @@ export default function Page() {
               return;
 
             case "DONE":
-              setFileData({ base64: parsed.file, format: currentFormat });
+              setGenderData(parsed.json);
+              setRawRecords(parsed.records);
               setStatus("Processing complete!");
               break;
           }
@@ -123,11 +120,27 @@ export default function Page() {
     }
   }
 
-  function downloadFile() {
-    if (!fileData) return;
+  async function downloadFile() {
+    if (genderData.length === 0 || !currentFormat) return;
 
-    const { base64, format } = fileData;
-    const bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+    const params = new URLSearchParams({
+      outputFormat: currentFormat,
+      threshold: threshold.toString(),
+      action: action,
+      addressLang: addressLang
+    });
+
+    const res = await fetch(`/api/format?${params.toString()}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        records: rawRecords,
+        genderData: genderData
+      })
+    });
+
+    const { file } = await res.json();
+    const bytes = Uint8Array.from(atob(file.base64), c => c.charCodeAt(0));
 
     const mimeMap: Record<string, string> = {
       csv: "text/csv",
@@ -137,12 +150,12 @@ export default function Page() {
       xls: "application/vnd.ms-excel",
     };
 
-    const blob = new Blob([bytes], { type: mimeMap[format] ?? "application/octet-stream" });
+    const blob = new Blob([bytes], { type: mimeMap[currentFormat] ?? "application/octet-stream" });
     const url = URL.createObjectURL(blob);
 
     const a = document.createElement("a");
     a.href = url;
-    a.download = `genderized.${format}`;
+    a.download = `genderized.${currentFormat}`;
     a.click();
 
     URL.revokeObjectURL(url);
@@ -187,7 +200,8 @@ export default function Page() {
                 setSelectedFile(null);
                 setCurrentFormat(undefined);
                 setStatus(undefined);
-                setFileData(undefined);
+                setRawRecords([]);
+                setGenderData([]);
                 setProgress({ current: 0, total: 0 });
               }}
               className="absolute top-2 right-2 text-red-500 hover:text-red-700 p-1 rounded-full bg-white shadow z-10 pointer-events-auto"
@@ -229,6 +243,20 @@ export default function Page() {
                     <SelectItem value="xlsm">XLSM</SelectItem>
                     <SelectItem value="xlsb">XLSB</SelectItem>
                     <SelectItem value="xls">XLS</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex flex-col gap-1 w-1/2">
+                <label className="text-sm font-medium">Address Language</label>
+
+                <Select value={addressLang} onValueChange={(v: "de" | "en") => setAddressLang(v)}>
+                  <SelectTrigger className="border rounded-sm w-1/2">
+                    <SelectValue />
+                  </SelectTrigger>
+
+                  <SelectContent className="bg-white rounded-lg border border-slate-200 shadow-lg">
+                    <SelectItem value="de">Deutsch</SelectItem>
+                    <SelectItem value="en">English</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -279,12 +307,12 @@ export default function Page() {
         </Accordion>
 
         <Button
-          disabled={!selectedFile || loading}
-          onClick={handleUpload}
-          className={"w-full rounded-lg px-4 py-2 text-white transition flex items-center justify-center gap-2"}
+         disabled={!selectedFile || loading || genderData.length > 0}
+         onClick={handleUpload}
+         className={"w-full rounded-lg px-4 py-2 text-white transition flex items-center justify-center gap-2"}
         >
-          {loading && <Spinner />}
-          {loading ? "Processing..." : "Confirm & Upload"}
+         {loading && <Spinner />}
+         {loading ? "Processing..." : genderData.length > 0 ? "File already uploaded" : "Confirm & Upload"}
         </Button>
 
         {loading && (
@@ -302,7 +330,7 @@ export default function Page() {
           </div>
         )}
 
-        {fileData && (
+        {genderData.length > 0 && (
           <Button
             variant="outline"
             className="w-full cursor-pointer"
