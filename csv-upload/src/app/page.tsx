@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import clsx from "clsx";
 import {
   Accordion,
@@ -35,7 +35,23 @@ export default function Page() {
   const [threshold, setThreshold] = useState<number>(70);
   const [action, setAction] = useState<"delete" | "ignore">("ignore");
   const [addressLang, setAddressLang] = useState<"de" | "en">("de");
-  const [progress, setProgress] = useState<{ current: number; total: number }>({ current: 0, total: 0 });
+  const [progress, setProgress] = useState<{ current: number; total: number | null }>({ current: 0, total: null });
+  const [showProgress, setShowProgress] = useState(false);
+  const [fadeOut, setFadeOut] = useState(false);
+
+  useEffect(() => {
+    if (progress.total !== null && progress.current === progress.total && progress.total > 0) {
+      const fadeTimer = setTimeout(() => {
+        setFadeOut(true);
+        const hideTimer = setTimeout(() => {
+          setShowProgress(false);
+          setFadeOut(false);
+        }, 300);
+        return () => clearTimeout(hideTimer);
+      }, 1000);
+      return () => clearTimeout(fadeTimer);
+    }
+  }, [progress]);
 
   function onFileSelect(file: File) {
     setSelectedFile(file);
@@ -43,14 +59,18 @@ export default function Page() {
     setStatus(undefined);
     setRawRecords([]);
     setGenderData([]);
-    setProgress({ current: 0, total: 0 });
+    setProgress({ current: 0, total: null });
+    setShowProgress(false);
+    setFadeOut(false);
   }
 
   async function handleUpload() {
     if (!selectedFile || !currentFormat) return;
 
     setLoading(true);
-    setProgress({ current: 0, total: 1 });
+    setProgress({ current: 0, total: null });
+    setShowProgress(true);
+    setFadeOut(false);
     setStatus("Starting upload...");
 
     const formData = new FormData();
@@ -88,11 +108,10 @@ export default function Page() {
           switch (event) {
             case "STATUS":
               setStatus(parsed.message);
-              if (parsed.step !== undefined) {
-                setProgress(prev => ({ 
-                  current: parsed.step, 
-                  total: parsed.total || prev.total 
-                }));
+              if (parsed.step !== undefined && parsed.total !== undefined) {
+                setProgress({ current: parsed.step, total: parsed.total });
+              } else if (parsed.step !== undefined) {
+                setProgress(prev => ({ current: parsed.step, total: prev.total }));
               }
               break;
 
@@ -202,7 +221,9 @@ export default function Page() {
                 setStatus(undefined);
                 setRawRecords([]);
                 setGenderData([]);
-                setProgress({ current: 0, total: 0 });
+                setProgress({ current: 0, total: null });
+                setShowProgress(false);
+                setFadeOut(false);
               }}
               className="absolute top-2 right-2 text-red-500 hover:text-red-700 p-1 rounded-full bg-white shadow z-10 pointer-events-auto"
             >
@@ -315,11 +336,11 @@ export default function Page() {
          {loading ? "Processing..." : genderData.length > 0 ? "File already uploaded" : "Confirm & Upload"}
         </Button>
 
-        {loading && (
-          <div className="space-y-2">
-            <Progress value={progress.total > 0 ? (progress.current / progress.total) * 100 : 0} />
+        {showProgress && (
+          <div className={`space-y-2 transition-opacity duration-300 ${fadeOut ? 'opacity-0' : 'opacity-100'}`}>
+            <Progress value={progress.total !== null ? (progress.current / progress.total) * 100 : 0} />
             <p className="text-sm text-center text-slate-600">
-              {progress.total > 0 ? `Step ${progress.current} of ${progress.total}` : "Initializing..."}
+              {progress.total !== null ? `Step ${progress.current} of ${progress.total}` : "Calculating..."}
             </p>
           </div>
         )}
