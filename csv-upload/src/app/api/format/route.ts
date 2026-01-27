@@ -46,8 +46,8 @@ export async function POST(req: Request): Promise<Response> {
     const base64 = Buffer.from(outputBuffer).toString("base64");
 
     return NextResponse.json({
-        file: { 
-            base64
-         }
-        });
+      file: { 
+        base64
+      }
+    });
 }
