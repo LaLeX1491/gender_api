@@ -294,7 +294,7 @@ export default function Page() {
                             Ignore row
                           </TooltipTrigger>
                           <TooltipContent side="bottom">
-                            Ignore the row, where the prediction was below the threshold
+                            Ignore the row (generate no prediction / address), where the prediction was below the threshold
                           </TooltipContent>
                         </Tooltip>
                       </SelectItem>
