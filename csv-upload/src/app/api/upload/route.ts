@@ -39,6 +39,16 @@ export type StreamStatus = "PROGRESS" | "STATUS" | "ERROR" | "DONE";
  * Accepts CSV/XLSX/XLS, sends firstName/lastName/location to n8n,
  * appends gender & probability, converts to requested output format.
  */
+
+/*
+bugs and improvements
+- fix upload
+- ignore row does not work // fixed
+- progresscount from 1 and not 0, rename step to completed batch // fixed
+- replace address language, make it configurable, sensible defaults
+- make npm build from project
+*/
+
 export async function POST(req: Request): Promise<Response> {
   const stream = new ReadableStream({
     async start(controller) {
@@ -81,10 +91,10 @@ export async function POST(req: Request): Promise<Response> {
           100
         );
 
-        send("PROGRESS", { step: 0, total: batches.length });
+        send("PROGRESS", { step: 1, total: batches.length+1 });
 
         const genderData: ResultRecord[] = await processBatches(batches, (completed, total) => {
-          send("PROGRESS", { step: completed, total: total });
+          send("PROGRESS", { step: completed+1, total: total+1 });
         });
 
         send("DONE", { json: genderData, records: records});

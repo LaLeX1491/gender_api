@@ -1,4 +1,4 @@
-// api/formatt/route.ts
+// api/format/route.ts
 
 import { NextResponse } from "next/server";
 import { ResultRecord } from "../upload/route";
@@ -10,11 +10,13 @@ export async function POST(req: Request): Promise<Response> {
     const { searchParams } = new URL(req.url);
     const outputFormat = (searchParams.get("outputFormat") ?? "csv").toLowerCase();
     const threshold: number = Number((searchParams.get("threshold") ?? 75));
-    const action: "delete" | "ignore" = (searchParams.get("action") ?? "ignore") as "delete" | "ignore";
-    const adressLang: "de" | "en" = (searchParams.get("addressLang") ?? "en") as "de" | "en";
+    const action: "delete" | "ignore" | "useDefault" = (searchParams.get("action") ?? "ignore") as "delete" | "ignore" | "useDefault";
     const body = await req.json() as {
         records: any[],
         genderData: ResultRecord[],
+        maleAddressLine: string,
+        femaleAddressLine: string,
+        defaultAddressLine: string,
     }
 
     const finalData = body.records.map(r => {
@@ -23,22 +25,20 @@ export async function POST(req: Request): Promise<Response> {
       const gender = genderRow?.gender;
       const ignoreInformation = probability < threshold && action === "ignore";
 
-      const address = {
-        en: { male: "Dear Mr. ", female: "Dear Mrs. " },
-        de: { male: "Sehr geehrter Herr ", female: "Sehr geehrte Frau " }
-      } as const;
-      type Language = keyof typeof address;
-      type Gender = keyof typeof address.en;
+      const address = gender === "male" 
+        ? applyPlaceholders(r.firstName, r.lastName, body.maleAddressLine) 
+        : gender === "female"
+          ? applyPlaceholders(r.firstName, r.lastName, body.femaleAddressLine)
+          : action === "useDefault" && !ignoreInformation 
+            ? applyPlaceholders(r.firstName, r.lastName, body.defaultAddressLine)
+            : "";
+
       const { id, ...rest } = r;
       return {
         ...rest,
         gender,
         probability: probability + "%",
-        addressLine: !ignoreInformation 
-          ? address[adressLang as Language]?.[gender as Gender] 
-            ? address[adressLang as Language]?.[gender as Gender] + r.lastName 
-            : ""
-          : ""
+        addressLine: address
       }
     }).filter(r => {
       if (action === "delete") {
@@ -54,4 +54,10 @@ export async function POST(req: Request): Promise<Response> {
         base64
       }
     });
+}
+
+function applyPlaceholders(firstName: string, lastName: string, input: string): string {
+  return input
+    .replaceAll("%firstName%", firstName)
+    .replaceAll("%lastName%", lastName);
 }

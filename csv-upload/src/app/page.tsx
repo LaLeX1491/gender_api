@@ -33,11 +33,22 @@ export default function Page() {
   const [rawRecords, setRawRecords] = useState<any[]>([]);
   const [genderData, setGenderData] = useState<ResultRecord[]>([]);
   const [threshold, setThreshold] = useState<number>(70);
-  const [action, setAction] = useState<"delete" | "ignore">("ignore");
-  const [addressLang, setAddressLang] = useState<"de" | "en">("de");
-  const [progress, setProgress] = useState<{ current: number; total: number | null }>({ current: 0, total: null });
+  const [action, setAction] = useState<"delete" | "ignore" | "useDefault">("ignore");
   const [showProgress, setShowProgress] = useState(false);
   const [fadeOut, setFadeOut] = useState(false);
+  const [progress, setProgress] = useState<{ current: number; total: number | null }>({ current: 0, total: null });
+
+  const isGerman = typeof navigator !== 'undefined' && navigator.language.startsWith('de');
+  
+  const [maleAddressLine, setMaleAddressLine] = useState(
+    isGerman ? "Sehr geehrter Herr %lastName%" : "Dear Mr. %lastName%"
+  );
+  const [femaleAddressLine, setFemaleAddressLine] = useState(
+    isGerman ? "Sehr geehrte Frau %lastName%" : "Dear Mrs. %lastName%"
+  );
+  const [defaultAddressLine, setDefaultAddressLine] = useState(
+    isGerman ? "Sehr geehrte Damen und Herren" : "Dear Sir or Madam"
+  );
 
   useEffect(() => {
     if (progress.total !== null && progress.current === progress.total && progress.total > 0) {
@@ -145,8 +156,7 @@ export default function Page() {
     const params = new URLSearchParams({
       outputFormat: currentFormat,
       threshold: threshold.toString(),
-      action: action,
-      addressLang: addressLang
+      action: action
     });
 
     const res = await fetch(`/api/format?${params.toString()}`, {
@@ -154,7 +164,10 @@ export default function Page() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         records: rawRecords,
-        genderData: genderData
+        genderData: genderData,
+        maleAddressLine,
+        femaleAddressLine,
+        defaultAddressLine
       })
     });
 
@@ -249,8 +262,8 @@ export default function Page() {
               Additional Options
             </AccordionTrigger>
 
-            <AccordionContent className="space-y-3 flex flex-wrap">
-              <div className="flex flex-col gap-1 w-1/2">
+            <AccordionContent className="space-y-3">
+              <div className="flex flex-col gap-1">
                 <label className="text-sm font-medium">Output format</label>
 
                 <Select value={currentFormat} onValueChange={setCurrentFormat}>
@@ -267,34 +280,74 @@ export default function Page() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="flex flex-col gap-1 w-1/2">
-                <label className="text-sm font-medium">Address Language</label>
 
-                <Select value={addressLang} onValueChange={(v: "de" | "en") => setAddressLang(v)}>
-                  <SelectTrigger className="border rounded-sm w-1/2">
-                    <SelectValue />
-                  </SelectTrigger>
-
-                  <SelectContent className="bg-white rounded-lg border border-slate-200 shadow-lg">
-                    <SelectItem value="de">Deutsch</SelectItem>
-                    <SelectItem value="en">English</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex flex-col gap-1 w-1/2">
+              <div className="flex flex-col gap-1">
                 <Tooltip>
-                  <TooltipTrigger asChild><label className="text-sm font-medium">Prediction threshold</label></TooltipTrigger>
-                  <TooltipContent className="text-center" side="left">The AI returns a confidence score (0–100%) indicating how likely the prediction is correct.<br />Set a threshold below which no gender will be applied.</TooltipContent>
+                  <TooltipTrigger asChild>
+                    <label className="text-sm font-medium">Address lines (use %firstName% and %lastName% as placeholders)</label>
+                  </TooltipTrigger>
+                  <TooltipContent className="text-center" side="left">
+                    Define custom address lines for male, female, and default cases.<br />
+                    Placeholders: %firstName%, %lastName%
+                  </TooltipContent>
+                </Tooltip>
+
+                <div className="space-y-2">
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs text-slate-600">Male address line</label>
+                    <Input 
+                      value={maleAddressLine} 
+                      onChange={(e) => setMaleAddressLine(e.target.value)}
+                      placeholder="Dear Mr. %lastName%"
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs text-slate-600">Female address line</label>
+                    <Input 
+                      value={femaleAddressLine} 
+                      onChange={(e) => setFemaleAddressLine(e.target.value)}
+                      placeholder="Dear Mrs. %lastName%"
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs text-slate-600">Default address line (when prediction fails)</label>
+                    <Input 
+                      value={defaultAddressLine} 
+                      onChange={(e) => setDefaultAddressLine(e.target.value)}
+                      placeholder="Dear Sir or Madam"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <label className="text-sm font-medium">Prediction threshold</label>
+                  </TooltipTrigger>
+                  <TooltipContent className="text-center" side="left">
+                    The AI returns a confidence score (0–100%) indicating how likely the prediction is correct.<br />
+                    Set a threshold below which the action below will be applied.
+                  </TooltipContent>
                 </Tooltip>
 
                 <div className="flex gap-1">
-                  <div className="relative ">
-                    <Input type="number" className="pr-6" min={50} max={100} onInput={(e: React.FormEvent<HTMLInputElement>) => setThreshold(Number(e.currentTarget.value))} defaultValue={threshold}></Input>
+                  <div className="relative">
+                    <Input 
+                      type="number" 
+                      className="pr-6" 
+                      min={50} 
+                      max={100} 
+                      value={threshold}
+                      onChange={(e) => setThreshold(Number(e.target.value))}
+                    />
                     <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-slate-500">%</span>
                   </div>
                   
-                  <Select value={action} onValueChange={(s: "delete" | "ignore") => setAction(s)}>
-                    <SelectTrigger className="border rounded-sm w-1/2">
+                  <Select value={action} onValueChange={(s: "delete" | "ignore" | "useDefault") => setAction(s)}>
+                    <SelectTrigger className="border rounded-sm w-full">
                       <SelectValue />
                     </SelectTrigger>
 
@@ -305,7 +358,7 @@ export default function Page() {
                             Delete row
                           </TooltipTrigger>
                           <TooltipContent>
-                            Delete the row, where the prediction was below the threshold
+                            Delete the row where the prediction was below the threshold
                           </TooltipContent>
                         </Tooltip>
                       </SelectItem>
@@ -315,7 +368,17 @@ export default function Page() {
                             Ignore row
                           </TooltipTrigger>
                           <TooltipContent side="bottom">
-                            Ignore the row (generate no prediction / address), where the prediction was below the threshold
+                            Leave address line empty where prediction was below threshold
+                          </TooltipContent>
+                        </Tooltip>
+                      </SelectItem>
+                      <SelectItem value="useDefault">
+                        <Tooltip>
+                          <TooltipTrigger>
+                            Use default
+                          </TooltipTrigger>
+                          <TooltipContent side="bottom">
+                            Use default address line where prediction was below threshold
                           </TooltipContent>
                         </Tooltip>
                       </SelectItem>
@@ -340,7 +403,7 @@ export default function Page() {
           <div className={`space-y-2 transition-opacity duration-300 ${fadeOut ? 'opacity-0' : 'opacity-100'}`}>
             <Progress value={progress.total !== null ? (progress.current / progress.total) * 100 : 0} />
             <p className="text-sm text-center text-slate-600">
-              {progress.total !== null ? `${progress.current} of ${progress.total} batches complete` : "Calculating..."}
+              {progress.total !== null ? `Step ${progress.current} of ${progress.total}` : "Calculating..."}
             </p>
           </div>
         )}
