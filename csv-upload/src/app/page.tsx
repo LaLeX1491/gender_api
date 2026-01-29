@@ -300,9 +300,11 @@ export default function Page() {
             accept=".csv,.xlsx,.xlsm,.xlsb,.xls"
             className="hidden"
             disabled={loading}
-            onChange={(e) =>
-              e.target.files && onFileSelect(e.target.files[0])
-            }
+            onChange={(e) => {
+              if (e.target.files && e.target.files.length > 0) {
+                onFileSelect(e.target.files[0]);
+              }
+            }}
           />
         </div>
 
