@@ -20,6 +20,11 @@ export type ResultRecord = {id: number, gender: string, probability: number};
 
 export type StreamStatus = "PROGRESS" | "STATUS" | "ERROR" | "DONE";
 
+/**
+ * This function handles the upload of a CSV/XLSX file, processes it in batches to predict gender by an AI (n8n flow)
+ * @param req HTTP Request
+ * @returns Stream with current batch and in the end list of id / gender / probability
+ */
 export async function POST(req: Request): Promise<Response> {
   const stream = new ReadableStream({
     async start(controller) {
@@ -147,7 +152,7 @@ async function processBatches(batches: InputRecord[], onProgress: (completed: nu
   const promises = batches.map(batch => 
     limit(async () => {
       const res = await fetch(
-        "https://csv-get-gender.app.n8n.cloud/webhook/gender-prediction-webhook",
+        process.env.API_URL!,
         {
           method: "POST",
           headers: {
