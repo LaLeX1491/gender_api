@@ -1,3 +1,4 @@
+// /api/upload/route.ts
 "use server";
 
 import { BookType } from "xlsx";
@@ -18,36 +19,6 @@ export type InputRecord = {id: number, firstName: string, lastName: string, loca
 export type ResultRecord = {id: number, gender: string, probability: number};
 
 export type StreamStatus = "PROGRESS" | "STATUS" | "ERROR" | "DONE";
-
-/**
- *  - output same format as input || done
- *  - add optional threshold / file end || done
- *  - convert object / csv to json object before sending to n8n  || done
- *  - convert response json back to requested format || done
- *  - move n8n batching to here / requests sequential or parallel  || done
- *  - add process feedback  || done
- *  - only 6 steps (just the ai processing ones)  || done
- *  - handle mutiple downloads with different options
- * 
- * extra changes
- * - index wird vom frontend geführt
- * - anrede deutsch / englisch
- */
-
-/**
- * POST /api/upload
- * Accepts CSV/XLSX/XLS, sends firstName/lastName/location to n8n,
- * appends gender & probability, converts to requested output format.
- */
-
-/*
-bugs and improvements
-- fix upload
-- ignore row does not work // fixed
-- progresscount from 1 and not 0, rename step to completed batch // fixed
-- replace address language, make it configurable, sensible defaults
-- make npm build from project
-*/
 
 export async function POST(req: Request): Promise<Response> {
   const stream = new ReadableStream({
@@ -75,18 +46,50 @@ export async function POST(req: Request): Promise<Response> {
           return;
         }
 
+        const firstNameColumn = formData.get("firstNameColumn") as string;
+        const lastNameColumn = formData.get("lastNameColumn") as string;
+        const locationColumn = formData.get("locationColumn") as string;
+
+        if (!firstNameColumn || !lastNameColumn || !locationColumn) {
+          send("ERROR", { status: 400, message: "Column mapping missing!"});
+          controller.close();
+          return;
+        }
+
         const inputBuffer = Buffer.from(await file.arrayBuffer());
-        const records: any[] = excelToObject(inputBuffer).map((o, idx) => ({
+        const rawRecords: any[] = excelToObject(inputBuffer);
+
+        // Validate that columns exist
+        if (rawRecords.length > 0) {
+          const firstRecord = rawRecords[0];
+          if (!firstRecord[firstNameColumn]) {
+            send("ERROR", { status: 400, message: `Column "${firstNameColumn}" not found in file!`});
+            controller.close();
+            return;
+          }
+          if (!firstRecord[lastNameColumn]) {
+            send("ERROR", { status: 400, message: `Column "${lastNameColumn}" not found in file!`});
+            controller.close();
+            return;
+          }
+          if (!firstRecord[locationColumn]) {
+            send("ERROR", { status: 400, message: `Column "${locationColumn}" not found in file!`});
+            controller.close();
+            return;
+          }
+        }
+
+        const records: any[] = rawRecords.map((o, idx) => ({
           id: idx,
           ...o
         }));
 
         const batches: any[] = batch(
-          records.map(({ id, firstName, lastName, location}) => ({
-            id,
-            firstName,
-            lastName,
-            location
+          records.map((r) => ({
+            id: r.id,
+            firstName: r[firstNameColumn],
+            lastName: r[lastNameColumn],
+            location: r[locationColumn]
           })),
           100
         );

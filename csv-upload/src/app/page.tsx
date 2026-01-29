@@ -38,6 +38,11 @@ export default function Page() {
   const [fadeOut, setFadeOut] = useState(false);
   const [progress, setProgress] = useState<{ current: number; total: number | null }>({ current: 0, total: null });
   
+  const [availableColumns, setAvailableColumns] = useState<string[]>([]);
+  const [firstNameColumn, setFirstNameColumn] = useState<string>("");
+  const [lastNameColumn, setLastNameColumn] = useState<string>("");
+  const [locationColumn, setLocationColumn] = useState<string>("");
+  
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const isGerman = typeof navigator !== 'undefined' && navigator.language.startsWith('de');
@@ -66,7 +71,7 @@ export default function Page() {
     }
   }, [progress]);
 
-  function onFileSelect(file: File) {
+  async function onFileSelect(file: File) {
     setSelectedFile(file);
     setCurrentFormat(getFormat(file));
     setStatus(undefined);
@@ -75,6 +80,34 @@ export default function Page() {
     setProgress({ current: 0, total: null });
     setShowProgress(false);
     setFadeOut(false);
+    
+    // Spalten aus Datei extrahieren
+    const formData = new FormData();
+    formData.append("file", file);
+    
+    try {
+      const res = await fetch(`/api/columns`, { method: "POST", body: formData });
+      const { columns } = await res.json();
+      setAvailableColumns(columns);
+      
+      // Auto-detect gängige Spaltennamen
+      const lowerColumns = columns.map((c: string) => c.toLowerCase());
+      const firstNameIdx = lowerColumns.findIndex((c: string) => 
+        c.includes("firstname") || c.includes("vorname") || c.includes("first")
+      );
+      const lastNameIdx = lowerColumns.findIndex((c: string) => 
+        c.includes("lastname") || c.includes("nachname") || c.includes("last") || c.includes("name")
+      );
+      const locationIdx = lowerColumns.findIndex((c: string) => 
+        c.includes("location") || c.includes("ort") || c.includes("city") || c.includes("stadt")
+      );
+      
+      if (firstNameIdx >= 0) setFirstNameColumn(columns[firstNameIdx]);
+      if (lastNameIdx >= 0) setLastNameColumn(columns[lastNameIdx]);
+      if (locationIdx >= 0) setLocationColumn(columns[locationIdx]);
+    } catch (error) {
+      console.error("Fehler beim Laden der Spalten:", error);
+    }
   }
 
   function resetFile() {
@@ -86,15 +119,18 @@ export default function Page() {
     setProgress({ current: 0, total: null });
     setShowProgress(false);
     setFadeOut(false);
+    setAvailableColumns([]);
+    setFirstNameColumn("");
+    setLastNameColumn("");
+    setLocationColumn("");
     
-    // Reset das file input
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
   }
 
   async function handleUpload() {
-    if (!selectedFile || !currentFormat) return;
+    if (!selectedFile || !currentFormat || !firstNameColumn || !lastNameColumn || !locationColumn) return;
 
     setLoading(true);
     setProgress({ current: 0, total: null });
@@ -104,6 +140,9 @@ export default function Page() {
 
     const formData = new FormData();
     formData.append("file", selectedFile);
+    formData.append("firstNameColumn", firstNameColumn);
+    formData.append("lastNameColumn", lastNameColumn);
+    formData.append("locationColumn", locationColumn);
 
     try {
       const res = await fetch(`/api/upload`, { method: "POST", body: formData });
@@ -211,6 +250,8 @@ export default function Page() {
     URL.revokeObjectURL(url);
   }
 
+  const isUploadReady = selectedFile && firstNameColumn && lastNameColumn && locationColumn;
+
   return (
     <main className="min-h-screen flex items-center justify-center bg-gradient from-slate-100 to-slate-200 p-4">
       <div className="w-full max-w-3xl rounded-2xl bg-white p-6 shadow-xl space-y-5">
@@ -218,9 +259,6 @@ export default function Page() {
           <h1 className="text-2xl font-semibold">Gender filter</h1>
           <p className="text-sm text-slate-500">
             Upload a CSV/XLSX/XLSM/XLSB/XLS file.
-          </p>
-          <p className="text-sm text-red-600">
-            Important: The file needs to contain the fields <code className="p-1 bg-slate-50 rounded-sm">firstName</code> <code className="p-1 bg-slate-50 rounded-sm">lastName</code> and <code className="p-1 bg-slate-50 rounded-sm">location</code>
           </p>
         </header>
 
@@ -267,6 +305,56 @@ export default function Page() {
             }
           />
         </div>
+
+        {availableColumns.length > 0 && (
+          <div className="space-y-3 p-4 bg-slate-50 rounded-lg">
+            <h3 className="text-sm font-semibold">Column Mapping</h3>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-medium text-slate-600">First Name Column</label>
+                <Select value={firstNameColumn} onValueChange={setFirstNameColumn}>
+                  <SelectTrigger className="border rounded-sm">
+                    <SelectValue placeholder="Select column" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white rounded-lg border border-slate-200 shadow-lg">
+                    {availableColumns.map(col => (
+                      <SelectItem key={col} value={col}>{col}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-medium text-slate-600">Last Name Column</label>
+                <Select value={lastNameColumn} onValueChange={setLastNameColumn}>
+                  <SelectTrigger className="border rounded-sm">
+                    <SelectValue placeholder="Select column" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white rounded-lg border border-slate-200 shadow-lg">
+                    {availableColumns.map(col => (
+                      <SelectItem key={col} value={col}>{col}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-medium text-slate-600">Location Column</label>
+                <Select value={locationColumn} onValueChange={setLocationColumn}>
+                  <SelectTrigger className="border rounded-sm">
+                    <SelectValue placeholder="Select column" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white rounded-lg border border-slate-200 shadow-lg">
+                    {availableColumns.map(col => (
+                      <SelectItem key={col} value={col}>{col}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+        )}
 
         <Accordion type="single" collapsible className="border-t border-slate-300">
           <AccordionItem value="options">
@@ -403,7 +491,7 @@ export default function Page() {
         </Accordion>
 
         <Button
-         disabled={!selectedFile || loading || genderData.length > 0}
+         disabled={!isUploadReady || loading || genderData.length > 0}
          onClick={handleUpload}
          className={"w-full rounded-lg px-4 py-2 text-white transition flex items-center justify-center gap-2"}
         >
