@@ -37,16 +37,16 @@ export default function Page() {
   const [showProgress, setShowProgress] = useState(false);
   const [fadeOut, setFadeOut] = useState(false);
   const [progress, setProgress] = useState<{ current: number; total: number | null }>({ current: 0, total: null });
-  
+
   const [availableColumns, setAvailableColumns] = useState<string[]>([]);
-  const [firstNameColumn, setFirstNameColumn] = useState<string>("");
-  const [lastNameColumn, setLastNameColumn] = useState<string>("");
-  const [locationColumn, setLocationColumn] = useState<string>("");
-  
+  const [firstNameColumn, setFirstNameColumn] = useState<string>();
+  const [lastNameColumn, setLastNameColumn] = useState<string>();
+  const [locationColumn, setLocationColumn] = useState<string>();
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const isGerman = typeof navigator !== 'undefined' && navigator.language.startsWith('de');
-  
+
   const [maleAddressLine, setMaleAddressLine] = useState(
     isGerman ? "Sehr geehrter Herr %lastName%" : "Dear Mr. %lastName%"
   );
@@ -80,31 +80,14 @@ export default function Page() {
     setProgress({ current: 0, total: null });
     setShowProgress(false);
     setFadeOut(false);
-    
-    // Spalten aus Datei extrahieren
+
     const formData = new FormData();
     formData.append("file", file);
-    
+
     try {
       const res = await fetch(`/api/columns`, { method: "POST", body: formData });
       const { columns } = await res.json();
       setAvailableColumns(columns);
-      
-      // Auto-detect gängige Spaltennamen
-      const lowerColumns = columns.map((c: string) => c.toLowerCase());
-      const firstNameIdx = lowerColumns.findIndex((c: string) => 
-        c.includes("firstname") || c.includes("vorname") || c.includes("first")
-      );
-      const lastNameIdx = lowerColumns.findIndex((c: string) => 
-        c.includes("lastname") || c.includes("nachname") || c.includes("last") || c.includes("name")
-      );
-      const locationIdx = lowerColumns.findIndex((c: string) => 
-        c.includes("location") || c.includes("ort") || c.includes("city") || c.includes("stadt")
-      );
-      
-      if (firstNameIdx >= 0) setFirstNameColumn(columns[firstNameIdx]);
-      if (lastNameIdx >= 0) setLastNameColumn(columns[lastNameIdx]);
-      if (locationIdx >= 0) setLocationColumn(columns[locationIdx]);
     } catch (error) {
       console.error("Fehler beim Laden der Spalten:", error);
     }
@@ -120,17 +103,17 @@ export default function Page() {
     setShowProgress(false);
     setFadeOut(false);
     setAvailableColumns([]);
-    setFirstNameColumn("");
-    setLastNameColumn("");
-    setLocationColumn("");
-    
+    setFirstNameColumn(undefined);
+    setLastNameColumn(undefined);
+    setLocationColumn(undefined);
+
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
   }
 
   async function handleUpload() {
-    if (!selectedFile || !currentFormat || !firstNameColumn || !lastNameColumn || !locationColumn) return;
+    if (!selectedFile || !currentFormat || !firstNameColumn) return;
 
     setLoading(true);
     setProgress({ current: 0, total: null });
@@ -141,8 +124,8 @@ export default function Page() {
     const formData = new FormData();
     formData.append("file", selectedFile);
     formData.append("firstNameColumn", firstNameColumn);
-    formData.append("lastNameColumn", lastNameColumn);
-    formData.append("locationColumn", locationColumn);
+    if (lastNameColumn) formData.append("lastNameColumn", lastNameColumn);
+    if (locationColumn) formData.append("locationColumn", locationColumn);
 
     try {
       const res = await fetch(`/api/upload`, { method: "POST", body: formData });
@@ -250,7 +233,7 @@ export default function Page() {
     URL.revokeObjectURL(url);
   }
 
-  const isUploadReady = selectedFile && firstNameColumn && lastNameColumn && locationColumn;
+  const isUploadReady = selectedFile && firstNameColumn;
 
   return (
     <main className="min-h-screen flex items-center justify-center bg-gradient from-slate-100 to-slate-200 p-4">
@@ -279,7 +262,7 @@ export default function Page() {
               {selectedFile ? selectedFile.name : "Click to select or drag & drop a file"}
             </span>
           </label>
-          
+
           {selectedFile && (
             <button
               type="button"
@@ -311,10 +294,11 @@ export default function Page() {
         {availableColumns.length > 0 && (
           <div className="space-y-3 p-4 bg-slate-50 rounded-lg">
             <h3 className="text-sm font-semibold">Column Mapping</h3>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              {/* First Name Column */}
               <div className="flex flex-col gap-1">
-                <label className="text-xs font-medium text-slate-600">First Name Column</label>
+                <label className="text-xs font-medium text-slate-600">First Name Column *</label>
                 <Select value={firstNameColumn} onValueChange={setFirstNameColumn}>
                   <SelectTrigger className="border rounded-sm">
                     <SelectValue placeholder="Select column" />
@@ -327,13 +311,18 @@ export default function Page() {
                 </Select>
               </div>
 
+              {/* Last Name Column */}
               <div className="flex flex-col gap-1">
-                <label className="text-xs font-medium text-slate-600">Last Name Column</label>
-                <Select value={lastNameColumn} onValueChange={setLastNameColumn}>
+                <label className="text-xs font-medium text-slate-600">Last Name Column (optional)</label>
+                <Select
+                  value={lastNameColumn ?? "__NONE__"}
+                  onValueChange={(val) => setLastNameColumn(val === "__NONE__" ? undefined : val)}
+                >
                   <SelectTrigger className="border rounded-sm">
                     <SelectValue placeholder="Select column" />
                   </SelectTrigger>
                   <SelectContent className="bg-white rounded-lg border border-slate-200 shadow-lg">
+                    <SelectItem value="__NONE__">None</SelectItem>
                     {availableColumns.map(col => (
                       <SelectItem key={col} value={col}>{col}</SelectItem>
                     ))}
@@ -341,13 +330,18 @@ export default function Page() {
                 </Select>
               </div>
 
+              {/* Location Column */}
               <div className="flex flex-col gap-1">
-                <label className="text-xs font-medium text-slate-600">Location Column</label>
-                <Select value={locationColumn} onValueChange={setLocationColumn}>
+                <label className="text-xs font-medium text-slate-600">Location Column (optional)</label>
+                <Select
+                  value={locationColumn ?? "__NONE__"}
+                  onValueChange={(val) => setLocationColumn(val === "__NONE__" ? undefined : val)}
+                >
                   <SelectTrigger className="border rounded-sm">
                     <SelectValue placeholder="Select column" />
                   </SelectTrigger>
                   <SelectContent className="bg-white rounded-lg border border-slate-200 shadow-lg">
+                    <SelectItem value="__NONE__">None</SelectItem>
                     {availableColumns.map(col => (
                       <SelectItem key={col} value={col}>{col}</SelectItem>
                     ))}
@@ -365,73 +359,20 @@ export default function Page() {
             </AccordionTrigger>
 
             <AccordionContent className="space-y-3">
-              <div className="flex items-center gap-2">
-                <div className="flex flex-col gap-1 w-1/2">
-                  <label className="text-sm font-medium">Output format</label>
-                  <Select value={currentFormat} onValueChange={setCurrentFormat}>
-                    <SelectTrigger className="border rounded-sm w-full">
-                      <SelectValue placeholder="Choose file format" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-white rounded-lg border border-slate-200 shadow-lg">
-                      <SelectItem value="csv">CSV</SelectItem>
-                      <SelectItem value="xlsx">XLSX</SelectItem>
-                      <SelectItem value="xlsm">XLSM</SelectItem>
-                      <SelectItem value="xlsb">XLSB</SelectItem>
-                      <SelectItem value="xls">XLS</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="flex flex-col gap-1 w-1/2">
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <label className="text-sm font-medium">Prediction threshold</label>
-                    </TooltipTrigger>
-                    <TooltipContent className="text-center" side="left">
-                      The AI returns a confidence score (0–100%) indicating how likely the prediction is correct.<br />
-                      Set a threshold below which the action below will be applied.
-                    </TooltipContent>
-                  </Tooltip>
-                  <div className="flex gap-1">
-                    <div className="relative w-full">
-                      <Input 
-                        type="number" 
-                        className="pr-6" 
-                        min={50} 
-                        max={100} 
-                        value={threshold}
-                        onChange={(e) => setThreshold(Number(e.target.value))}
-                      />
-                      <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-slate-500">%</span>
-                    </div>
-
-                    <Select value={action} onValueChange={(s: "delete" | "ignore" | "useDefault") => setAction(s)}>
-                      <SelectTrigger className="border rounded-sm w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent className="bg-white rounded-lg border border-slate-200 shadow-lg">
-                        <SelectItem value="delete">
-                          <Tooltip>
-                            <TooltipTrigger>Delete row</TooltipTrigger>
-                            <TooltipContent>Delete the row where the prediction was below the threshold</TooltipContent>
-                          </Tooltip>
-                        </SelectItem>
-                        <SelectItem value="ignore">
-                          <Tooltip>
-                            <TooltipTrigger>Ignore row</TooltipTrigger>
-                            <TooltipContent side="bottom">Leave address line empty where prediction was below threshold</TooltipContent>
-                          </Tooltip>
-                        </SelectItem>
-                        <SelectItem value="useDefault">
-                          <Tooltip>
-                            <TooltipTrigger>Use default</TooltipTrigger>
-                            <TooltipContent side="bottom">Use default address line where prediction was below threshold</TooltipContent>
-                          </Tooltip>
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium">Output format</label>
+                <Select value={currentFormat} onValueChange={setCurrentFormat}>
+                  <SelectTrigger className="border rounded-sm w-1/2">
+                    <SelectValue placeholder="Choose file format" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white rounded-lg border border-slate-200 shadow-lg">
+                    <SelectItem value="csv">CSV</SelectItem>
+                    <SelectItem value="xlsx">XLSX</SelectItem>
+                    <SelectItem value="xlsm">XLSM</SelectItem>
+                    <SelectItem value="xlsb">XLSB</SelectItem>
+                    <SelectItem value="xls">XLS</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="flex flex-col gap-1">
@@ -448,8 +389,8 @@ export default function Page() {
                 <div className="space-y-2">
                   <div className="flex flex-col gap-1">
                     <label className="text-xs text-slate-600">Male address line</label>
-                    <Input 
-                      value={maleAddressLine} 
+                    <Input
+                      value={maleAddressLine}
                       onChange={(e) => setMaleAddressLine(e.target.value)}
                       placeholder="Dear Mr. %lastName%"
                     />
@@ -457,8 +398,8 @@ export default function Page() {
 
                   <div className="flex flex-col gap-1">
                     <label className="text-xs text-slate-600">Female address line</label>
-                    <Input 
-                      value={femaleAddressLine} 
+                    <Input
+                      value={femaleAddressLine}
                       onChange={(e) => setFemaleAddressLine(e.target.value)}
                       placeholder="Dear Mrs. %lastName%"
                     />
@@ -466,12 +407,64 @@ export default function Page() {
 
                   <div className="flex flex-col gap-1">
                     <label className="text-xs text-slate-600">Default address line (when prediction fails)</label>
-                    <Input 
-                      value={defaultAddressLine} 
+                    <Input
+                      value={defaultAddressLine}
                       onChange={(e) => setDefaultAddressLine(e.target.value)}
                       placeholder="Dear Sir or Madam"
                     />
                   </div>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <label className="text-sm font-medium">Prediction threshold</label>
+                  </TooltipTrigger>
+                  <TooltipContent className="text-center" side="left">
+                    The AI returns a confidence score (0–100%) indicating how likely the prediction is correct.<br />
+                    Set a threshold below which the action below will be applied.
+                  </TooltipContent>
+                </Tooltip>
+
+                <div className="flex gap-1">
+                  <div className="relative">
+                    <Input
+                      type="number"
+                      className="pr-6"
+                      min={50}
+                      max={100}
+                      value={threshold}
+                      onChange={(e) => setThreshold(Number(e.target.value))}
+                    />
+                    <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-slate-500">%</span>
+                  </div>
+
+                  <Select value={action} onValueChange={(s: "delete" | "ignore" | "useDefault") => setAction(s)}>
+                    <SelectTrigger className="border rounded-sm w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-white rounded-lg border border-slate-200 shadow-lg">
+                      <SelectItem value="delete">
+                        <Tooltip>
+                          <TooltipTrigger>Delete row</TooltipTrigger>
+                          <TooltipContent>Delete the row where the prediction was below the threshold</TooltipContent>
+                        </Tooltip>
+                      </SelectItem>
+                      <SelectItem value="ignore">
+                        <Tooltip>
+                          <TooltipTrigger>Ignore row</TooltipTrigger>
+                          <TooltipContent side="bottom">Leave address line empty where prediction was below threshold</TooltipContent>
+                        </Tooltip>
+                      </SelectItem>
+                      <SelectItem value="useDefault">
+                        <Tooltip>
+                          <TooltipTrigger>Use default</TooltipTrigger>
+                          <TooltipContent side="bottom">Use default address line where prediction was below threshold</TooltipContent>
+                        </Tooltip>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
             </AccordionContent>
@@ -479,16 +472,16 @@ export default function Page() {
         </Accordion>
 
         <Button
-         disabled={!isUploadReady || loading || genderData.length > 0}
-         onClick={handleUpload}
-         className={"w-full rounded-lg px-4 py-2 text-white transition flex items-center justify-center gap-2"}
+          disabled={!isUploadReady || loading || genderData.length > 0}
+          onClick={handleUpload}
+          className="w-full rounded-lg px-4 py-2 text-white transition flex items-center justify-center gap-2"
         >
-         {loading && <Spinner />}
-         {loading ? "Processing..." : genderData.length > 0 ? "File already uploaded" : "Confirm & Upload"}
+          {loading && <Spinner />}
+          {loading ? "Processing..." : genderData.length > 0 ? "File already uploaded" : "Confirm & Upload"}
         </Button>
 
         {showProgress && (
-          <div className={`space-y-2 transition-opacity duration-300 ${fadeOut ? 'opacity-0' : 'opacity-100'}`}>
+          <div className={clsx("space-y-2 transition-opacity duration-300", fadeOut ? "opacity-0" : "opacity-100")}>
             <Progress value={progress.total !== null ? (progress.current / progress.total) * 100 : 0} />
             <p className="text-sm text-center text-slate-600">
               {progress.total !== null ? `${progress.current} of ${progress.total} batches complete` : "Calculating..."}
@@ -503,11 +496,7 @@ export default function Page() {
         )}
 
         {genderData.length > 0 && (
-          <Button
-            variant="outline"
-            className="w-full cursor-pointer"
-            onClick={downloadFile}
-          >
+          <Button variant="outline" className="w-full cursor-pointer" onClick={downloadFile}>
             Download File
           </Button>
         )}

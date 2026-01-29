@@ -1,4 +1,3 @@
-// /api/upload/route.ts
 "use server";
 
 import { BookType } from "xlsx";
@@ -20,11 +19,6 @@ export type ResultRecord = {id: number, gender: string, probability: number};
 
 export type StreamStatus = "PROGRESS" | "STATUS" | "ERROR" | "DONE";
 
-/**
- * This function handles the upload of a CSV/XLSX file, processes it in batches to predict gender by an AI (n8n flow)
- * @param req HTTP Request
- * @returns Stream with current batch and in the end list of id / gender / probability
- */
 export async function POST(req: Request): Promise<Response> {
   const stream = new ReadableStream({
     async start(controller) {
@@ -52,11 +46,11 @@ export async function POST(req: Request): Promise<Response> {
         }
 
         const firstNameColumn = formData.get("firstNameColumn") as string;
-        const lastNameColumn = formData.get("lastNameColumn") as string;
-        const locationColumn = formData.get("locationColumn") as string;
+        const lastNameColumn = formData.get("lastNameColumn") as string | null;
+        const locationColumn = formData.get("locationColumn") as string | null;
 
-        if (!firstNameColumn || !lastNameColumn || !locationColumn) {
-          send("ERROR", { status: 400, message: "Column mapping missing!"});
+        if (!firstNameColumn) {
+          send("ERROR", { status: 400, message: "First name column is required!"});
           controller.close();
           return;
         }
@@ -64,21 +58,11 @@ export async function POST(req: Request): Promise<Response> {
         const inputBuffer = Buffer.from(await file.arrayBuffer());
         const rawRecords: any[] = excelToObject(inputBuffer);
 
-        // Validate that columns exist
+        // Validate that required column exists
         if (rawRecords.length > 0) {
           const firstRecord = rawRecords[0];
           if (!firstRecord[firstNameColumn]) {
             send("ERROR", { status: 400, message: `Column "${firstNameColumn}" not found in file!`});
-            controller.close();
-            return;
-          }
-          if (!firstRecord[lastNameColumn]) {
-            send("ERROR", { status: 400, message: `Column "${lastNameColumn}" not found in file!`});
-            controller.close();
-            return;
-          }
-          if (!firstRecord[locationColumn]) {
-            send("ERROR", { status: 400, message: `Column "${locationColumn}" not found in file!`});
             controller.close();
             return;
           }
@@ -93,8 +77,8 @@ export async function POST(req: Request): Promise<Response> {
           records.map((r) => ({
             id: r.id,
             firstName: r[firstNameColumn],
-            lastName: r[lastNameColumn],
-            location: r[locationColumn]
+            lastName: lastNameColumn ? r[lastNameColumn] : "",
+            location: locationColumn ? r[locationColumn] : ""
           })),
           100
         );
