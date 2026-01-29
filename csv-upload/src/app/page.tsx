@@ -365,22 +365,73 @@ export default function Page() {
             </AccordionTrigger>
 
             <AccordionContent className="space-y-3">
-              <div className="flex flex-col gap-1">
-                <label className="text-sm font-medium">Output format</label>
+              <div className="flex items-center gap-2">
+                <div className="flex flex-col gap-1 w-1/2">
+                  <label className="text-sm font-medium">Output format</label>
+                  <Select value={currentFormat} onValueChange={setCurrentFormat}>
+                    <SelectTrigger className="border rounded-sm w-full">
+                      <SelectValue placeholder="Choose file format" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-white rounded-lg border border-slate-200 shadow-lg">
+                      <SelectItem value="csv">CSV</SelectItem>
+                      <SelectItem value="xlsx">XLSX</SelectItem>
+                      <SelectItem value="xlsm">XLSM</SelectItem>
+                      <SelectItem value="xlsb">XLSB</SelectItem>
+                      <SelectItem value="xls">XLS</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
-                <Select value={currentFormat} onValueChange={setCurrentFormat}>
-                  <SelectTrigger className="border rounded-sm w-1/2">
-                    <SelectValue placeholder="Choose file format" />
-                  </SelectTrigger>
+                <div className="flex flex-col gap-1 w-1/2">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <label className="text-sm font-medium">Prediction threshold</label>
+                    </TooltipTrigger>
+                    <TooltipContent className="text-center" side="left">
+                      The AI returns a confidence score (0–100%) indicating how likely the prediction is correct.<br />
+                      Set a threshold below which the action below will be applied.
+                    </TooltipContent>
+                  </Tooltip>
+                  <div className="flex gap-1">
+                    <div className="relative w-full">
+                      <Input 
+                        type="number" 
+                        className="pr-6" 
+                        min={50} 
+                        max={100} 
+                        value={threshold}
+                        onChange={(e) => setThreshold(Number(e.target.value))}
+                      />
+                      <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-slate-500">%</span>
+                    </div>
 
-                  <SelectContent className="bg-white rounded-lg border border-slate-200 shadow-lg">
-                    <SelectItem value="csv">CSV</SelectItem>
-                    <SelectItem value="xlsx">XLSX</SelectItem>
-                    <SelectItem value="xlsm">XLSM</SelectItem>
-                    <SelectItem value="xlsb">XLSB</SelectItem>
-                    <SelectItem value="xls">XLS</SelectItem>
-                  </SelectContent>
-                </Select>
+                    <Select value={action} onValueChange={(s: "delete" | "ignore" | "useDefault") => setAction(s)}>
+                      <SelectTrigger className="border rounded-sm w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-white rounded-lg border border-slate-200 shadow-lg">
+                        <SelectItem value="delete">
+                          <Tooltip>
+                            <TooltipTrigger>Delete row</TooltipTrigger>
+                            <TooltipContent>Delete the row where the prediction was below the threshold</TooltipContent>
+                          </Tooltip>
+                        </SelectItem>
+                        <SelectItem value="ignore">
+                          <Tooltip>
+                            <TooltipTrigger>Ignore row</TooltipTrigger>
+                            <TooltipContent side="bottom">Leave address line empty where prediction was below threshold</TooltipContent>
+                          </Tooltip>
+                        </SelectItem>
+                        <SelectItem value="useDefault">
+                          <Tooltip>
+                            <TooltipTrigger>Use default</TooltipTrigger>
+                            <TooltipContent side="bottom">Use default address line where prediction was below threshold</TooltipContent>
+                          </Tooltip>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
               </div>
 
               <div className="flex flex-col gap-1">
@@ -421,71 +472,6 @@ export default function Page() {
                       placeholder="Dear Sir or Madam"
                     />
                   </div>
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <label className="text-sm font-medium">Prediction threshold</label>
-                  </TooltipTrigger>
-                  <TooltipContent className="text-center" side="left">
-                    The AI returns a confidence score (0–100%) indicating how likely the prediction is correct.<br />
-                    Set a threshold below which the action below will be applied.
-                  </TooltipContent>
-                </Tooltip>
-
-                <div className="flex gap-1">
-                  <div className="relative">
-                    <Input 
-                      type="number" 
-                      className="pr-6" 
-                      min={50} 
-                      max={100} 
-                      value={threshold}
-                      onChange={(e) => setThreshold(Number(e.target.value))}
-                    />
-                    <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-slate-500">%</span>
-                  </div>
-                  
-                  <Select value={action} onValueChange={(s: "delete" | "ignore" | "useDefault") => setAction(s)}>
-                    <SelectTrigger className="border rounded-sm w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-
-                    <SelectContent className="bg-white rounded-lg border border-slate-200 shadow-lg">
-                      <SelectItem value="delete">
-                        <Tooltip>
-                          <TooltipTrigger>
-                            Delete row
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            Delete the row where the prediction was below the threshold
-                          </TooltipContent>
-                        </Tooltip>
-                      </SelectItem>
-                      <SelectItem value="ignore">
-                        <Tooltip>
-                          <TooltipTrigger>
-                            Ignore row
-                          </TooltipTrigger>
-                          <TooltipContent side="bottom">
-                            Leave address line empty where prediction was below threshold
-                          </TooltipContent>
-                        </Tooltip>
-                      </SelectItem>
-                      <SelectItem value="useDefault">
-                        <Tooltip>
-                          <TooltipTrigger>
-                            Use default
-                          </TooltipTrigger>
-                          <TooltipContent side="bottom">
-                            Use default address line where prediction was below threshold
-                          </TooltipContent>
-                        </Tooltip>
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
                 </div>
               </div>
             </AccordionContent>
