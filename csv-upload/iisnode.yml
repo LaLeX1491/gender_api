@@ -1,0 +1,4 @@
+nodeProcessCommandLine: "D:\Program Files (x86)\nodejs\node.exe"
+loggingEnabled: true
+logDirectory: iisnode
+node_env: production

@@ -58,6 +58,15 @@ try {
     console.warn('⚠ web.config file not found at:', webConfigSrc);
   }
   
+  // Copy iisnode.yml file
+  const iisnodeYmlSrc = join(projectRoot, 'iisnode.yml');
+  if (existsSync(iisnodeYmlSrc)) {
+    copyFileSync(iisnodeYmlSrc, join(standaloneDir, 'iisnode.yml'));
+    console.log('✓ Copied iisnode.yml file');
+  } else {
+    console.warn('⚠ iisnode.yml file not found at:', iisnodeYmlSrc);
+  }
+  
   // Copy static folder
   const staticSrc = join(projectRoot, '.next', 'static');
   const staticDest = join(standaloneDir, '.next', 'static');
