@@ -1,7 +1,13 @@
+// api/columns/route.ts
 "use server";
 
 import { excelToObject } from "@/lib/excelConverter";
 
+/**
+ * Endpoint for extracting column names from uploaded file.
+ * @param req 
+ * @returns 
+ */
 export async function POST(req: Request): Promise<Response> {
   try {
     const formData = await req.formData();

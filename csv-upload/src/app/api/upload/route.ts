@@ -1,3 +1,4 @@
+// api/upload/route.ts
 "use server";
 
 import { BookType } from "xlsx";
@@ -5,6 +6,7 @@ import { excelToObject } from "@/lib/excelConverter";
 import getFormat from "@/lib/extractFileFormat";
 import pLimit from "p-limit"
 
+// allowed formats for upload and download
 const ALLOWED_FORMATS: Record<string, { contentType: string; bookType?: BookType }> = {
   csv: { contentType: "text/csv" },
   xlsx: { contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", bookType: "xlsx" },
@@ -19,9 +21,18 @@ export type ResultRecord = {id: number, gender: string, probability: number};
 
 export type StreamStatus = "PROGRESS" | "STATUS" | "ERROR" | "DONE";
 
+/**
+ * Upload endpoint. 
+ * - Processes uploaded file in batches
+ * - Streams progress updates back to client
+ * - Returns final list @see ResultRecord[]
+ * @param req 
+ * @returns 
+ */
 export async function POST(req: Request): Promise<Response> {
   const stream = new ReadableStream({
     async start(controller) {
+      // stream formatting helper
       const send = (event: StreamStatus, data: unknown) => {
         const encoder = new TextEncoder();
         controller.enqueue(
@@ -58,7 +69,7 @@ export async function POST(req: Request): Promise<Response> {
         const inputBuffer = Buffer.from(await file.arrayBuffer());
         const rawRecords: any[] = excelToObject(inputBuffer);
 
-        // Validate that required column exists
+        // validate that required column exists
         if (rawRecords.length > 0) {
           const firstRecord = rawRecords[0];
           if (!firstRecord[firstNameColumn]) {
@@ -73,6 +84,7 @@ export async function POST(req: Request): Promise<Response> {
           ...o
         }));
 
+        // pack data into batches
         const batches: any[] = batch(
           records.map((r) => ({
             id: r.id,
@@ -85,6 +97,7 @@ export async function POST(req: Request): Promise<Response> {
 
         send("PROGRESS", { step: 1, total: batches.length+1 });
 
+        // process the batches (send to n8n)
         const genderData: ResultRecord[] = await processBatches(batches, (completed, total) => {
           send("PROGRESS", { step: completed+1, total: total+1 });
         });
@@ -107,6 +120,7 @@ export async function POST(req: Request): Promise<Response> {
   });
 }
 
+// utility function for batching arrays
 function batch(obj: any[], size: number): any[] {
   let bundles: any[] = [];
   let currentBundle: any[] = [];
@@ -127,8 +141,9 @@ function batch(obj: any[], size: number): any[] {
   return bundles;
 }
 
+// process batches with concurrency limit
 async function processBatches(batches: InputRecord[], onProgress: (completed: number, total: number) => void): Promise<ResultRecord[]> {
-  const limit = pLimit(5);
+  const limit = pLimit(5); // max 5 concurrent requests
   let completed = 0;
   const total = batches.length;
   const results: ResultRecord[] = [];

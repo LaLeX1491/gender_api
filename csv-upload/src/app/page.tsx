@@ -23,30 +23,40 @@ import {
 import getFormat from "@/lib/extractFileFormat";
 import { FaTimes } from "react-icons/fa";
 
+// Type representing a single gender prediction result
 type ResultRecord = { id: number; gender: string; probability: number };
 
 export default function Page() {
+  // --- File & format state ---
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [currentFormat, setCurrentFormat] = useState<string>();
   const [status, setStatus] = useState<string>();
   const [loading, setLoading] = useState(false);
+
+  // --- Data state ---
   const [rawRecords, setRawRecords] = useState<any[]>([]);
   const [genderData, setGenderData] = useState<ResultRecord[]>([]);
   const [threshold, setThreshold] = useState<number>(70);
   const [action, setAction] = useState<"delete" | "ignore" | "useDefault">("ignore");
+
+  // --- Progress bar state ---
   const [showProgress, setShowProgress] = useState(false);
   const [fadeOut, setFadeOut] = useState(false);
   const [progress, setProgress] = useState<{ current: number; total: number | null }>({ current: 0, total: null });
 
+  // --- Columns mapping state ---
   const [availableColumns, setAvailableColumns] = useState<string[]>([]);
   const [firstNameColumn, setFirstNameColumn] = useState<string>();
   const [lastNameColumn, setLastNameColumn] = useState<string>();
   const [locationColumn, setLocationColumn] = useState<string>();
 
+  // Ref to reset native file input
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Detect if browser language is German
   const isGerman = typeof navigator !== 'undefined' && navigator.language.startsWith('de');
 
+  // --- Default address lines ---
   const [maleAddressLine, setMaleAddressLine] = useState(
     isGerman ? "Sehr geehrter Herr %lastName%" : "Dear Mr. %lastName%"
   );
@@ -54,9 +64,10 @@ export default function Page() {
     isGerman ? "Sehr geehrte Frau %lastName%" : "Dear Mrs. %lastName%"
   );
   const [defaultAddressLine, setDefaultAddressLine] = useState(
-    isGerman ? "Sehr geehrte Damen und Herren" : "Dear Sir or Madam"
+    isGerman ? "Hallo %firstName%" : "Hello %firstName%"
   );
 
+  // Effect to handle fading out the progress bar once upload completes
   useEffect(() => {
     if (progress.total !== null && progress.current === progress.total && progress.total > 0) {
       const fadeTimer = setTimeout(() => {
@@ -71,6 +82,8 @@ export default function Page() {
     }
   }, [progress]);
 
+  // Triggered when a file is selected or dropped
+  // Extracts columns and resets previous state
   async function onFileSelect(file: File) {
     setSelectedFile(file);
     setCurrentFormat(getFormat(file));
@@ -84,6 +97,7 @@ export default function Page() {
     const formData = new FormData();
     formData.append("file", file);
 
+    // Fetch available columns from backend
     try {
       const res = await fetch(`/api/columns`, { method: "POST", body: formData });
       const { columns } = await res.json();
@@ -93,6 +107,7 @@ export default function Page() {
     }
   }
 
+  // Reset all state related to file and data
   function resetFile() {
     setSelectedFile(null);
     setCurrentFormat(undefined);
@@ -112,6 +127,7 @@ export default function Page() {
     }
   }
 
+  // Handles uploading the file to the backend and processing streaming events
   async function handleUpload() {
     if (!selectedFile || !currentFormat || !firstNameColumn) return;
 
@@ -190,6 +206,7 @@ export default function Page() {
     }
   }
 
+  // Download the processed genderized file
   async function downloadFile() {
     if (genderData.length === 0 || !currentFormat) return;
 
@@ -233,11 +250,13 @@ export default function Page() {
     URL.revokeObjectURL(url);
   }
 
+  // Determine if upload button should be enabled
   const isUploadReady = selectedFile && firstNameColumn;
 
   return (
     <main className="min-h-screen flex items-center justify-center bg-gradient from-slate-100 to-slate-200 p-4">
       <div className="w-full max-w-3xl rounded-2xl bg-white p-6 shadow-xl space-y-5">
+        {/* Header */}
         <header>
           <h1 className="text-2xl font-semibold">Gender filter</h1>
           <p className="text-sm text-slate-500">
@@ -245,6 +264,7 @@ export default function Page() {
           </p>
         </header>
 
+        {/* File upload area with drag & drop support */}
         <div className="relative">
           <label
             htmlFor="file"
@@ -263,6 +283,7 @@ export default function Page() {
             </span>
           </label>
 
+          {/* Reset file button */}
           {selectedFile && (
             <button
               type="button"
@@ -276,6 +297,7 @@ export default function Page() {
             </button>
           )}
 
+          {/* Hidden file input for native file selection */}
           <input
             ref={fileInputRef}
             id="file"
@@ -291,6 +313,7 @@ export default function Page() {
           />
         </div>
 
+        {/* Column mapping section */}
         {availableColumns.length > 0 && (
           <div className="space-y-3 p-4 bg-slate-50 rounded-lg">
             <h3 className="text-sm font-semibold">Column Mapping</h3>
@@ -352,6 +375,7 @@ export default function Page() {
           </div>
         )}
 
+        {/* Accordion for additional options */}
         <Accordion type="single" collapsible className="border-t border-slate-300">
           <AccordionItem value="options">
             <AccordionTrigger className="py-2 flex justify-between w-full items-center">
@@ -359,7 +383,8 @@ export default function Page() {
             </AccordionTrigger>
 
             <AccordionContent className="space-y-3">
-              <div className="flex flex-col gap-1">
+              {/* Output format selector */}
+                            <div className="flex flex-col gap-1">
                 <label className="text-sm font-medium">Output format</label>
                 <Select value={currentFormat} onValueChange={setCurrentFormat}>
                   <SelectTrigger className="border rounded-sm w-1/2">
@@ -375,6 +400,7 @@ export default function Page() {
                 </Select>
               </div>
 
+              {/* Address line configuration with tooltips */}
               <div className="flex flex-col gap-1">
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -386,6 +412,7 @@ export default function Page() {
                   </TooltipContent>
                 </Tooltip>
 
+                {/* Input fields for custom address lines */}
                 <div className="space-y-2">
                   <div className="flex flex-col gap-1">
                     <label className="text-xs text-slate-600">Male address line</label>
@@ -416,6 +443,7 @@ export default function Page() {
                 </div>
               </div>
 
+              {/* Threshold and action selection */}
               <div className="flex flex-col gap-1">
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -428,6 +456,7 @@ export default function Page() {
                 </Tooltip>
 
                 <div className="flex gap-1">
+                  {/* Numeric input for threshold */}
                   <div className="relative">
                     <Input
                       type="number"
@@ -440,6 +469,7 @@ export default function Page() {
                     <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-slate-500">%</span>
                   </div>
 
+                  {/* Action select (delete, ignore, use default) */}
                   <Select value={action} onValueChange={(s: "delete" | "ignore" | "useDefault") => setAction(s)}>
                     <SelectTrigger className="border rounded-sm w-full">
                       <SelectValue />
@@ -471,6 +501,7 @@ export default function Page() {
           </AccordionItem>
         </Accordion>
 
+        {/* Upload button */}
         <Button
           disabled={!isUploadReady || loading || genderData.length > 0}
           onClick={handleUpload}
@@ -480,6 +511,7 @@ export default function Page() {
           {loading ? "Processing..." : genderData.length > 0 ? "File already uploaded" : "Confirm & Upload"}
         </Button>
 
+        {/* Progress bar display */}
         {showProgress && (
           <div className={clsx("space-y-2 transition-opacity duration-300", fadeOut ? "opacity-0" : "opacity-100")}>
             <Progress value={progress.total !== null ? (progress.current / progress.total) * 100 : 0} />
@@ -489,12 +521,14 @@ export default function Page() {
           </div>
         )}
 
+        {/* Status message display */}
         {status && (
           <div className="rounded-lg bg-slate-100 px-4 py-2 text-sm">
             {status}
           </div>
         )}
 
+        {/* Download button appears once processing is complete */}
         {genderData.length > 0 && (
           <Button variant="outline" className="w-full cursor-pointer" onClick={downloadFile}>
             Download File
