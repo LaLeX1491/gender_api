@@ -6,7 +6,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const projectRoot = join(__dirname, '..');
 
-const standaloneDir = join(projectRoot, '.next', 'standalone', 'csv-upload');
+const standaloneDir = join(projectRoot, '.next', 'standalone');
 
 // Helper function to recursively copy directory
 function copyDirectory(src, dest) {
