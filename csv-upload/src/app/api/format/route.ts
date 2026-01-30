@@ -1,11 +1,16 @@
 // api/format/route.ts
+"use server";
 
 import { NextResponse } from "next/server";
 import { ResultRecord } from "../upload/route";
 import { BookType } from "xlsx";
 import { objectToExcel } from "@/lib/excelConverter";
 
-
+/**
+ * 
+ * @param req 
+ * @returns 
+ */
 export async function POST(req: Request): Promise<Response> {
     const { searchParams } = new URL(req.url);
     const outputFormat = (searchParams.get("outputFormat") ?? "csv").toLowerCase();
@@ -19,6 +24,7 @@ export async function POST(req: Request): Promise<Response> {
         defaultAddressLine: string,
     }
 
+    // combines the ResultRecord data with original records (by generated ID) and applies address line logic
     const finalData = body.records.map(r => {
       const genderRow = body.genderData.find(g => Number(g.id) === Number(r.id));
       const probability = genderRow?.probability ? Number(genderRow.probability) : 0;
@@ -33,7 +39,7 @@ export async function POST(req: Request): Promise<Response> {
             ? applyPlaceholders(r.firstName, r.lastName, body.defaultAddressLine)
             : "";
 
-      const { id, ...rest } = r;
+      const { id, ...rest } = r; // removes internal id again
       return {
         ...rest,
         gender,
@@ -46,6 +52,8 @@ export async function POST(req: Request): Promise<Response> {
       }
       return true;
     });
+
+    // turns the object into the requested file format
     const outputBuffer = await objectToExcel(finalData, outputFormat as BookType);
     const base64 = Buffer.from(outputBuffer).toString("base64");
 

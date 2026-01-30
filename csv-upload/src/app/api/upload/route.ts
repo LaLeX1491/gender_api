@@ -1,3 +1,4 @@
+// api/upload/route.ts
 "use server";
 
 import { BookType } from "xlsx";
@@ -5,6 +6,7 @@ import { excelToObject } from "@/lib/excelConverter";
 import getFormat from "@/lib/extractFileFormat";
 import pLimit from "p-limit"
 
+// allowed formats for upload and download
 const ALLOWED_FORMATS: Record<string, { contentType: string; bookType?: BookType }> = {
   csv: { contentType: "text/csv" },
   xlsx: { contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", bookType: "xlsx" },
@@ -20,38 +22,17 @@ export type ResultRecord = {id: number, gender: string, probability: number};
 export type StreamStatus = "PROGRESS" | "STATUS" | "ERROR" | "DONE";
 
 /**
- *  - output same format as input || done
- *  - add optional threshold / file end || done
- *  - convert object / csv to json object before sending to n8n  || done
- *  - convert response json back to requested format || done
- *  - move n8n batching to here / requests sequential or parallel  || done
- *  - add process feedback  || done
- *  - only 6 steps (just the ai processing ones)  || done
- *  - handle mutiple downloads with different options
- * 
- * extra changes
- * - index wird vom frontend geführt
- * - anrede deutsch / englisch
+ * Upload endpoint. 
+ * - Processes uploaded file in batches
+ * - Streams progress updates back to client
+ * - Returns final list @see ResultRecord[]
+ * @param req 
+ * @returns 
  */
-
-/**
- * POST /api/upload
- * Accepts CSV/XLSX/XLS, sends firstName/lastName/location to n8n,
- * appends gender & probability, converts to requested output format.
- */
-
-/*
-bugs and improvements
-- fix upload
-- ignore row does not work // fixed
-- progresscount from 1 and not 0, rename step to completed batch // fixed
-- replace address language, make it configurable, sensible defaults
-- make npm build from project
-*/
-
 export async function POST(req: Request): Promise<Response> {
   const stream = new ReadableStream({
     async start(controller) {
+      // stream formatting helper
       const send = (event: StreamStatus, data: unknown) => {
         const encoder = new TextEncoder();
         controller.enqueue(
@@ -75,24 +56,48 @@ export async function POST(req: Request): Promise<Response> {
           return;
         }
 
+        const firstNameColumn = formData.get("firstNameColumn") as string;
+        const lastNameColumn = formData.get("lastNameColumn") as string | null;
+        const locationColumn = formData.get("locationColumn") as string | null;
+
+        if (!firstNameColumn) {
+          send("ERROR", { status: 400, message: "First name column is required!"});
+          controller.close();
+          return;
+        }
+
         const inputBuffer = Buffer.from(await file.arrayBuffer());
-        const records: any[] = excelToObject(inputBuffer).map((o, idx) => ({
+        const rawRecords: any[] = excelToObject(inputBuffer);
+
+        // validate that required column exists
+        if (rawRecords.length > 0) {
+          const firstRecord = rawRecords[0];
+          if (!firstRecord[firstNameColumn]) {
+            send("ERROR", { status: 400, message: `Column "${firstNameColumn}" not found in file!`});
+            controller.close();
+            return;
+          }
+        }
+
+        const records: any[] = rawRecords.map((o, idx) => ({
           id: idx,
           ...o
         }));
 
+        // pack data into batches
         const batches: any[] = batch(
-          records.map(({ id, firstName, lastName, location}) => ({
-            id,
-            firstName,
-            lastName,
-            location
+          records.map((r) => ({
+            id: r.id,
+            firstName: r[firstNameColumn],
+            lastName: lastNameColumn ? r[lastNameColumn] : "",
+            location: locationColumn ? r[locationColumn] : ""
           })),
           100
         );
 
         send("PROGRESS", { step: 1, total: batches.length+1 });
 
+        // process the batches (send to n8n)
         const genderData: ResultRecord[] = await processBatches(batches, (completed, total) => {
           send("PROGRESS", { step: completed+1, total: total+1 });
         });
@@ -115,6 +120,7 @@ export async function POST(req: Request): Promise<Response> {
   });
 }
 
+// utility function for batching arrays
 function batch(obj: any[], size: number): any[] {
   let bundles: any[] = [];
   let currentBundle: any[] = [];
@@ -135,8 +141,9 @@ function batch(obj: any[], size: number): any[] {
   return bundles;
 }
 
+// process batches with concurrency limit
 async function processBatches(batches: InputRecord[], onProgress: (completed: number, total: number) => void): Promise<ResultRecord[]> {
-  const limit = pLimit(5);
+  const limit = pLimit(5); // max 5 concurrent requests
   let completed = 0;
   const total = batches.length;
   const results: ResultRecord[] = [];
@@ -144,7 +151,7 @@ async function processBatches(batches: InputRecord[], onProgress: (completed: nu
   const promises = batches.map(batch => 
     limit(async () => {
       const res = await fetch(
-        "https://csv-get-gender.app.n8n.cloud/webhook/gender-prediction-webhook",
+        process.env.API_URL!,
         {
           method: "POST",
           headers: {
