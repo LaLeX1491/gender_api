@@ -29,24 +29,30 @@ export async function POST(req: Request): Promise<Response> {
       const genderRow = body.genderData.find(g => Number(g.id) === Number(r.id));
       const probability = genderRow?.probability ? Number(genderRow.probability) : 0;
       const gender = genderRow?.gender;
-      const ignoreInformation = probability < threshold && action === "ignore";
-
-      const address = gender === "male" 
-        ? applyPlaceholders(r.firstName, r.lastName, body.maleAddressLine) 
-        : gender === "female"
-          ? applyPlaceholders(r.firstName, r.lastName, body.femaleAddressLine)
-          : action === "useDefault" && !ignoreInformation 
-            ? applyPlaceholders(r.firstName, r.lastName, body.defaultAddressLine)
-            : "";
-
+      const ignoreInformation =
+        action === "ignore" && probability <= threshold;
+      const useDefault =
+        action === "useDefault" &&
+        probability < threshold &&
+        !ignoreInformation;
+      const address =
+        !ignoreInformation && gender === "male" && !useDefault
+          ? applyPlaceholders(r.firstName, r.lastName, body.maleAddressLine)
+          : !ignoreInformation && gender === "female" && !useDefault
+            ? applyPlaceholders(r.firstName, r.lastName, body.femaleAddressLine)
+            : useDefault
+              ? applyPlaceholders(r.firstName, r.lastName, body.defaultAddressLine)
+              : "";
       const { id, ...rest } = r; // removes internal id again
+      
       return {
         ...rest,
         gender,
         probability: probability + "%",
         addressLine: address
-      }
-    }).filter(r => {
+      };
+    })
+    .filter(r => {
       if (action === "delete") {
         return Number(r.probability.replaceAll("%", "")) >= threshold;
       }

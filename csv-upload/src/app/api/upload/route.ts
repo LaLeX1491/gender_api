@@ -85,12 +85,12 @@ export async function POST(req: Request): Promise<Response> {
         }));
 
         // pack data into batches
-        const batches: any[] = batch(
+        const batches: InputRecord[][] = batch(
           records.map((r) => ({
             id: r.id,
-            firstName: r[firstNameColumn],
-            lastName: lastNameColumn ? r[lastNameColumn] : "",
-            location: locationColumn ? r[locationColumn] : ""
+            firstName: String(r[firstNameColumn] ?? ""),
+            lastName: lastNameColumn ? String(r[lastNameColumn] ?? "") : "",
+            location: locationColumn ? String(r[locationColumn] ?? "") : ""
           })),
           100
         );
@@ -121,28 +121,16 @@ export async function POST(req: Request): Promise<Response> {
 }
 
 // utility function for batching arrays
-function batch(obj: any[], size: number): any[] {
-  let bundles: any[] = [];
-  let currentBundle: any[] = [];
-
-  if(obj.length <= size) return [{ bundle: obj }];
-
-  obj.forEach(item => {
-    currentBundle.push(item);
-    
-    if(currentBundle.length === size) {
-      bundles.push(currentBundle)
-      currentBundle = [];
-    }
-  });
-
-  if(currentBundle.length > 0) bundles.push(currentBundle)
-
-  return bundles;
+function batch<T>(arr: T[], size: number): T[][] {
+  const result: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) {
+    result.push(arr.slice(i, i + size));
+  }
+  return result;
 }
 
 // process batches with concurrency limit
-async function processBatches(batches: InputRecord[], onProgress: (completed: number, total: number) => void): Promise<ResultRecord[]> {
+async function processBatches(batches: InputRecord[][], onProgress: (completed: number, total: number) => void): Promise<ResultRecord[]> {
   const limit = pLimit(5); // max 5 concurrent requests
   let completed = 0;
   const total = batches.length;
